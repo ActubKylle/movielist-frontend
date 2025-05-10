@@ -69,31 +69,48 @@ function MovieDetails() {
             <div className="badge bg-primary">{movie.release_year}</div>
           </div>
         </div>
-        <div className="card-body">
-          <div className="mb-4">
-            <h5 className="card-title">Genre</h5>
-            <p className="card-text">{movie.genre}</p>
-          </div>
-          
-          {movie.description && (
-            <div className="mb-4">
-              <h5 className="card-title">Description</h5>
-              <p className="card-text">{movie.description}</p>
+        
+        <div className="row g-0">
+          {movie.image_path && (
+            <div className="col-md-4">
+              <img 
+                src={`/storage/${movie.image_path}`} 
+                alt={movie.title} 
+                className="img-fluid rounded-start"
+                style={{ maxHeight: '300px', objectFit: 'cover' }}
+              />
             </div>
           )}
           
-          <div className="mb-2">
-            <h5 className="card-title">Created</h5>
-            <p className="card-text">{new Date(movie.created_at).toLocaleString()}</p>
-          </div>
-          
-          {movie.created_at !== movie.updated_at && (
-            <div>
-              <h5 className="card-title">Last Updated</h5>
-              <p className="card-text">{new Date(movie.updated_at).toLocaleString()}</p>
+          <div className={movie.image_path ? "col-md-8" : "col-md-12"}>
+            <div className="card-body">
+              <div className="mb-4">
+                <h5 className="card-title">Genre</h5>
+                <p className="card-text">{movie.genre}</p>
+              </div>
+              
+              {movie.description && (
+                <div className="mb-4">
+                  <h5 className="card-title">Description</h5>
+                  <p className="card-text">{movie.description}</p>
+                </div>
+              )}
+              
+              <div className="mb-2">
+                <h5 className="card-title">Created</h5>
+                <p className="card-text">{new Date(movie.created_at).toLocaleString()}</p>
+              </div>
+              
+              {movie.created_at !== movie.updated_at && (
+                <div>
+                  <h5 className="card-title">Last Updated</h5>
+                  <p className="card-text">{new Date(movie.updated_at).toLocaleString()}</p>
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
+        
         <div className="card-footer">
           <div className="d-flex justify-content-end">
             <Link to={`/movies/edit/${movie.id}`} className="btn btn-primary me-2">
