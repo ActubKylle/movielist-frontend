@@ -5,11 +5,6 @@ import { toast } from 'react-toastify';
 import axios from 'axios';
 
 const currentYear = new Date().getFullYear();
-const commonGenres = [
-  'Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 
-  'Documentary', 'Drama', 'Fantasy', 'Horror', 'Mystery',
-  'Romance', 'Sci-Fi', 'Thriller', 'War', 'Western'
-];
 
 function MovieForm() {
   const { id } = useParams();
@@ -23,37 +18,50 @@ function MovieForm() {
     description: ''
   });
   
+  const [image, setImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [genres, setGenres] = useState([]);
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
-    // Check if auth token exists
-    const token = localStorage.getItem('token');
-    if (!token) {
-      console.error("No authentication token found");
-      toast.error('Please log in to continue');
-      navigate('/login');
-      return;
-    }
-    
-    // Set the Authorization header
-    if (!axios.defaults.headers.common['Authorization']) {
-      console.log("Setting authorization header from localStorage");
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    }
+    // Fetch all available genres for the dropdown
+    fetchGenres();
     
     if (isEditing) {
       fetchMovie();
     }
   }, [id]);
 
+  const fetchGenres = async () => {
+    try {
+      const response = await axios.get('/api/genres');
+      setGenres(response.data);
+    } catch (error) {
+      console.error('Error fetching genres:', error);
+      // If we couldn't fetch the genres, we'll use a default list
+      setGenres([
+        'Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 
+        'Documentary', 'Drama', 'Fantasy', 'Horror', 'Mystery',
+        'Romance', 'Sci-Fi', 'Thriller', 'War', 'Western'
+      ]);
+    }
+  };
+
   const fetchMovie = async () => {
     try {
       console.log(`Fetching movie with ID: ${id}`);
       const response = await axios.get(`/api/movies/${id}`);
       console.log("Movie data:", response.data);
+      
+      // Set form data from the response
       setFormData(response.data);
+      
+      // Set image preview if there's an image path
+      if (response.data.image_path) {
+        setImagePreview(`/storage/${response.data.image_path}`);
+      }
     } catch (error) {
       console.error('Error fetching movie:', error);
       
@@ -86,6 +94,29 @@ function MovieForm() {
     }
   };
   
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    
+    if (file) {
+      setImage(file);
+      
+      // Create a preview URL for the image
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+      
+      // Clear any errors for the image field
+      if (errors.image) {
+        setErrors({
+          ...errors,
+          image: null
+        });
+      }
+    }
+  };
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -104,17 +135,37 @@ function MovieForm() {
         }
       }
       
+      // Create a form data object to send the image
+      const formPayload = new FormData();
+      formPayload.append('title', formData.title);
+      formPayload.append('genre', formData.genre);
+      formPayload.append('release_year', formData.release_year);
+      formPayload.append('description', formData.description || '');
+      
+      // Only append the image if a new one was selected
+      if (image) {
+        formPayload.append('image', image);
+      }
+      
       let response;
       if (isEditing) {
         console.log(`Updating movie with ID: ${id}`);
-        console.log("Movie data:", formData);
-        response = await axios.put(`/api/movies/${id}`, formData);
+        // For PUT requests with FormData, we need to use the _method parameter
+        formPayload.append('_method', 'PUT');
+        response = await axios.post(`/api/movies/${id}`, formPayload, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
         console.log("Update response:", response.data);
         toast.success('Movie updated successfully');
       } else {
         console.log("Creating new movie");
-        console.log("Movie data:", formData);
-        response = await axios.post('/api/movies', formData);
+        response = await axios.post('/api/movies', formPayload, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
         console.log('Movie created successfully:', response.data);
         toast.success('Movie added successfully');
       }
@@ -158,7 +209,7 @@ function MovieForm() {
       
       <div className="card shadow-sm">
         <div className="card-body p-4">
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} encType="multipart/form-data">
             <div className="mb-3">
               <label htmlFor="title" className="form-label">Movie Title</label>
               <input
@@ -178,22 +229,19 @@ function MovieForm() {
               <div className="col-md-6">
                 <label htmlFor="genre" className="form-label">Genre</label>
                 <div className="input-group">
-                  <input
-                    type="text"
-                    className={`form-control ${errors.genre ? 'is-invalid' : ''}`}
+                  <select
+                    className={`form-select ${errors.genre ? 'is-invalid' : ''}`}
                     id="genre"
                     name="genre"
                     value={formData.genre}
                     onChange={handleChange}
-                    placeholder="e.g. Action, Comedy, Drama"
-                    list="genre-options"
                     required
-                  />
-                  <datalist id="genre-options">
-                    {commonGenres.map(genre => (
-                      <option key={genre} value={genre} />
+                  >
+                    <option value="">Select Genre</option>
+                    {genres.map((genre, index) => (
+                      <option key={index} value={genre}>{genre}</option>
                     ))}
-                  </datalist>
+                  </select>
                   {errors.genre && <div className="invalid-feedback">{errors.genre[0]}</div>}
                 </div>
               </div>
@@ -228,6 +276,31 @@ function MovieForm() {
                 placeholder="Enter movie description (optional)"
               ></textarea>
               {errors.description && <div className="invalid-feedback">{errors.description[0]}</div>}
+            </div>
+            
+            <div className="mb-4">
+              <label htmlFor="image" className="form-label">Movie Poster</label>
+              <input
+                type="file"
+                className={`form-control ${errors.image ? 'is-invalid' : ''}`}
+                id="image"
+                name="image"
+                onChange={handleImageChange}
+                accept="image/*"
+              />
+              {errors.image && <div className="invalid-feedback">{errors.image[0]}</div>}
+              
+              {imagePreview && (
+                <div className="mt-2">
+                  <p>Preview:</p>
+                  <img 
+                    src={imagePreview} 
+                    alt="Movie poster preview" 
+                    className="img-thumbnail" 
+                    style={{ maxHeight: '200px' }} 
+                  />
+                </div>
+              )}
             </div>
             
             <div className="d-flex justify-content-between">
